@@ -1,0 +1,1 @@
+SELECT level FROM public.dipdup_index WHERE name = 'hen_mainnet';

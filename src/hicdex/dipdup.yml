@@ -1,0 +1,520 @@
+spec_version: 1.2
+package: hicdex
+
+database:
+  kind: sqlite
+  path: hic_et_nunc.sqlite3
+
+contracts:
+  HEN_objkts:
+    address: KT1RJ6PbjHpwc3M5rw5s2Nbmefwbuwbdxton
+    typename: hen_objkts
+  HEN_swap_v1:
+    address: KT1Hkg5qeNhfwpKW4fXvq7HGZB9z2EnmCCA9
+    typename: hen_minter
+  HEN_swap_v2:
+    address: KT1HbQepzV1nVGg8QVznG7z4RcHseD5kwqBn
+    typename: hen_swap_v2
+  HEN_subjkts:
+    address: KT1My1wDZHDGweCrJnQJi3wcFaS67iksirvj
+    typename: hen_subjkt
+  SPLIT_contract_sample_a:
+    address: KT1K8A2cqqpQTEHYpY9R7aAybCdcM3tNpXyu
+    typename: split_contract_a
+  SPLIT_contract_sample_b:
+    address: KT1Nr12oNBxMXqrgWPaN7tedue8Q6GzzbiNg
+    typename: split_contract_a
+  SPLIT_contract_sample_c:
+    address: KT1Uaq7E1zcTg2BCDXWXBmuGoVFeLZkCkv3s
+    typename: split_contract_a
+  SPLIT_contract_sample_d:
+    address: KT1XNKmW2786FRK9rGr544JYcmLvcvwn3qEV
+    typename: split_contract_a
+  SPLIT_sign:
+    address: KT1BcLnWRziLDNJNRn3phAANKrEBiXhytsMY
+    typename: split_sign
+  OBJKTBID_english_v0:
+    address: KT1Wvk8fon9SgNEPQKewoSL2ziGGuCQebqZc
+    typename: objktbid_english
+  OBJKTBID_english_v1:
+    address: KT1XjcRq5MLAzMKQ3UHsrue2SeU2NbxUrzmU
+    typename: objktbid_english
+  OBJKTBID_dutch_v0:
+    address: KT1ET45vnyEFMLS9wX1dYHEs9aCN3twDEiQw
+    typename: objktbid_dutch
+  OBJKTBID_dutch_v1:
+    address: KT1QJ71jypKGgyTNtXjkCAYJZNhCKWiHuT2r
+    typename: objktbid_dutch
+  OBJKTBID_marketplace:
+    address: KT1FvqJwEDWb1Gwc55Jd1jjTHRVWbYKUUpyq
+    typename: objktbid_marketplace
+  OBJKTBID_english_v2:
+    address: KT18p94vjkkHYY3nPmernmgVR7HdZFzE7NAk
+    typename: objktbid_english2
+  OBJKTBID_dutch_v2:
+    address: KT1XXu88HkNzQRHNgAf7Mnq68LyS9MZJNoHP
+    typename: objktbid_dutch2
+  OBJKTBID_marketplace_v2:
+    address: KT1WvzYHCNBvDSdwafTHv7nJ1dWmZ8GCYuuC
+    typename: objktbid_marketplace2
+  FXHASH_gentk:
+    address: KT1KEa8z6vWXDJrVqtMrAeDVzsvxat3kHaCE
+    typename: fxhash_gentk
+  FXHASH_minter_v2:
+    address: KT1XCoGnfupWk7Sp8536EfrxcP73LmT68Nyr
+    typename: fxhash_minter
+  FXHASH_report:
+    address: KT1HgVuzNWVvnX16fahbV2LrnpwifYKoFMRd
+    typename: fxhash_moderation
+  FXHASH_user_report:
+    address: KT1TWWQ6FtLoosVfZgTKV2q68TMZaENhGm54
+    typename: fxhash_user_moderation
+  FXHASH_user:
+    address: KT1Ezht4PDKZri7aVppVGT4Jkw39sesaFnww
+    typename: fxhash_user
+  VERSUM_minter:
+    address: KT1LjmAdYQCLBjwv4S2oFkEzyHVkomAf5MrW
+    typename: versum_mint
+  VERSUM_market:
+    address: KT1GyRAJNdizF1nojQz62uGYkx8WFRUJm9X5
+    typename: versum_market
+
+
+datasources:
+  tzkt_mainnet:
+    kind: tzkt
+    url: https://api.tzkt.io
+
+hooks:
+  failed_metas:
+    callback: failed_metas
+    atomic: False
+  get_token_meta:
+    callback: get_token_meta
+    atomic: False
+    args:
+     token: Token
+
+jobs:
+  failed_metas:
+    hook: failed_metas
+    interval: 120  # in seconds
+
+indexes:
+  hen_mainnet:
+    kind: operation
+    datasource: tzkt_mainnet
+    types:
+      - transaction
+    contracts:
+      - HEN_swap_v1
+      - HEN_swap_v2
+      - HEN_objkts
+      - HEN_subjkts
+      - SPLIT_sign
+    handlers:
+      # marketplace v1
+      - callback: on_mint
+        pattern:
+          - type: transaction
+            destination: HEN_swap_v1
+            entrypoint: mint_OBJKT
+          - type: transaction
+            destination: HEN_objkts
+            entrypoint: mint
+      - callback: on_swap
+        pattern:
+          - type: transaction
+            destination: HEN_swap_v1
+            entrypoint: swap
+      - callback: on_cancel_swap
+        pattern:
+          - type: transaction
+            destination: HEN_swap_v1
+            entrypoint: cancel_swap
+      - callback: on_collect
+        pattern:
+          - type: transaction
+            destination: HEN_swap_v1
+            entrypoint: collect
+
+      # marketplace v2
+      - callback: on_swap_v2
+        pattern:
+          - type: transaction
+            destination: HEN_swap_v2
+            entrypoint: swap
+      - callback: on_cancel_swap_v2
+        pattern:
+          - type: transaction
+            destination: HEN_swap_v2
+            entrypoint: cancel_swap
+      - callback: on_collect_v2
+        pattern:
+          - type: transaction
+            destination: HEN_swap_v2
+            entrypoint: collect
+
+      # fa2
+      - callback: on_transfer
+        pattern:
+          - type: transaction
+            destination: HEN_objkts
+            entrypoint: transfer
+
+      # subjkt
+      - callback: on_subjkt_register
+        pattern:
+          - type: transaction
+            destination: HEN_subjkts
+            entrypoint: registry
+
+      # split sign
+      - callback: on_split_sign
+        pattern:
+          - type: transaction
+            destination: SPLIT_sign
+            entrypoint: sign
+
+  split_contract_a:
+    kind: operation
+    datasource: tzkt_mainnet
+    types:
+      - transaction
+      - origination
+    handlers:
+      - callback: on_split_contract_origination_a
+        pattern:
+          - type: origination
+            similar_to: SPLIT_contract_sample_a
+      - callback: on_split_contract_origination_a
+        pattern:
+          - type: origination
+            similar_to: SPLIT_contract_sample_b
+      - callback: on_split_contract_origination_a
+        pattern:
+          - type: origination
+            similar_to: SPLIT_contract_sample_c
+      - callback: on_split_contract_origination_a
+        pattern:
+          - type: origination
+            similar_to: SPLIT_contract_sample_d
+
+  objktbid:
+    kind: operation
+    datasource: tzkt_mainnet
+    contracts:
+      - OBJKTBID_english_v0
+      - OBJKTBID_english_v1
+      - OBJKTBID_dutch_v0
+      - OBJKTBID_dutch_v1
+      - OBJKTBID_marketplace
+    handlers:
+      # english v0
+      - callback: on_create_english
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_english_v0
+            entrypoint: create_auction
+      - callback: on_cancel_english
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_english_v0
+            entrypoint: cancel_auction
+      - callback: on_conclude_english
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_english_v0
+            entrypoint: conclude_auction
+
+      # english v1
+      - callback: on_create_english
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_english_v1
+            entrypoint: create_auction
+      - callback: on_cancel_english
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_english_v1
+            entrypoint: cancel_auction
+      - callback: on_conclude_english
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_english_v1
+            entrypoint: conclude_auction
+
+      # dutch v0
+      - callback: on_create_dutch
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_dutch_v0
+            entrypoint: create_auction
+      - callback: on_cancel_dutch
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_dutch_v0
+            entrypoint: cancel_auction
+      - callback: on_buy_dutch
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_dutch_v0
+            entrypoint: buy
+
+      # dutch v1
+      - callback: on_create_dutch
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_dutch_v1
+            entrypoint: create_auction
+      - callback: on_cancel_dutch
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_dutch_v1
+            entrypoint: cancel_auction
+      - callback: on_buy_dutch
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_dutch_v1
+            entrypoint: buy
+
+      # asks/bids
+      - callback: on_create_bid
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_marketplace
+            entrypoint: bid
+      - callback: on_create_ask
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_marketplace
+            entrypoint: ask
+      - callback: on_retract_bid
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_marketplace
+            entrypoint: retract_bid
+      - callback: on_retract_ask
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_marketplace
+            entrypoint: retract_ask
+      - callback: on_fulfill_bid
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_marketplace
+            entrypoint: fulfill_bid
+      - callback: on_fulfill_ask
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_marketplace
+            entrypoint: fulfill_ask
+
+  fxhash:
+    first_level: 2000000
+    kind: operation
+    types:
+      - transaction
+    datasource: tzkt_mainnet
+    contracts:
+      - FXHASH_minter_v2
+      - FXHASH_user
+      - FXHASH_report
+      - FXHASH_user_report
+      # - FXHASH_gentk
+    handlers:
+      - callback: fxhash_mint_issuer
+        pattern:
+          - type: transaction
+            destination: FXHASH_minter_v2
+            entrypoint: mint_issuer
+      - callback: fxhash_update_issuer
+        pattern:
+          - type: transaction
+            destination: FXHASH_minter_v2
+            entrypoint: update_issuer
+      - callback: fxhash_mint_token
+        pattern:
+          - type: transaction
+            destination: FXHASH_minter_v2
+            entrypoint: mint
+      - callback: fxhash_update_profile
+        pattern:
+          - type: transaction
+            destination: FXHASH_user
+            entrypoint: update_profile
+      - callback: fxhash_burn_token
+        pattern:
+          - type: transaction
+            destination: FXHASH_minter_v2
+            entrypoint: burn
+      - callback: fxhash_burn_supply
+        pattern:
+          - type: transaction
+            destination: FXHASH_minter_v2
+            entrypoint: burn_supply
+      - callback: fxhash_moderated
+        pattern:
+          - type: transaction
+            destination: FXHASH_report
+            entrypoint: moderate
+      - callback: fxhash_user_moderated
+        pattern:
+          - type: transaction
+            destination: FXHASH_user_report
+            entrypoint: moderate
+      - callback: fxhash_user_verified
+        pattern:
+          - type: transaction
+            destination: FXHASH_user_report
+            entrypoint: verify
+      - callback: fxhash_user_ban
+        pattern:
+          - type: transaction
+            destination: FXHASH_user_report
+            entrypoint: ban
+      # TODO
+      # - callback: fxhash_mint_gentk
+      #   pattern:
+      #     - type: transaction
+      #       destination: FXHASH_minter_v2
+      #       entrypoint: mint
+      #     - type: transaction
+      #       destination: FXHASH_gentk
+      #       entrypoint: mint
+
+  versum:
+    first_level: 2022000
+    kind: operation
+    types:
+      - transaction
+    datasource: tzkt_mainnet
+    contracts:
+      - VERSUM_minter
+      - VERSUM_market
+    handlers:
+      - callback: versum_mint
+        pattern:
+          - type: transaction
+            destination: VERSUM_minter
+            entrypoint: mint
+      - callback: versum_transfer
+        pattern:
+          - type: transaction
+            destination: VERSUM_minter
+            entrypoint: transfer
+      - callback: versum_create_swap
+        pattern:
+          - type: transaction
+            destination: VERSUM_market
+            entrypoint: create_swap
+      - callback: versum_cancel_swap
+        pattern:
+          - type: transaction
+            destination: VERSUM_market
+            entrypoint: cancel_swap
+      - callback: versum_collect_swap
+        pattern:
+          - type: transaction
+            destination: VERSUM_market
+            entrypoint: collect_swap
+      - callback: versum_make_offer
+        pattern:
+          - type: transaction
+            destination: VERSUM_market
+            entrypoint: make_offer
+      - callback: versum_accept_offer
+        pattern:
+          - type: transaction
+            destination: VERSUM_market
+            entrypoint: accept_offer
+      - callback: versum_cancel_offer
+        pattern:
+          - type: transaction
+            destination: VERSUM_market
+            entrypoint: cancel_offer
+      - callback: versum_create_auction
+        pattern:
+          - type: transaction
+            destination: VERSUM_market
+            entrypoint: create_auction
+      - callback: versum_conclude_auction
+        pattern:
+          - type: transaction
+            destination: VERSUM_market
+            entrypoint: withdraw
+
+  objktbid_v2:
+    kind: operation
+    first_level: 2100000
+    datasource: tzkt_mainnet
+    contracts:
+      - OBJKTBID_english_v2
+      - OBJKTBID_dutch_v2
+      - OBJKTBID_marketplace_v2
+    handlers:
+      # english v2
+      - callback: on_create_english_v2
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_english_v2
+            entrypoint: create_auction
+      - callback: on_cancel_english_v2
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_english_v2
+            entrypoint: cancel_auction
+      - callback: on_conclude_english_v2
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_english_v2
+            entrypoint: settle_auction
+
+      # dutch v2
+      - callback: on_create_dutch_v2
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_dutch_v2
+            entrypoint: create_auction
+      - callback: on_cancel_dutch_v2
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_dutch_v2
+            entrypoint: cancel_auction
+      - callback: on_buy_dutch_v2
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_dutch_v2
+            entrypoint: buy
+
+      # asks/bids
+      - callback: on_objkt_ask
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_marketplace_v2
+            entrypoint: ask
+      - callback: on_objkt_offer
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_marketplace_v2
+            entrypoint: offer
+      - callback: on_objkt_retract_offer
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_marketplace_v2
+            entrypoint: retract_offer
+      - callback: on_objkt_retract_ask
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_marketplace_v2
+            entrypoint: retract_ask
+      - callback: on_objkt_fulfill_offer
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_marketplace_v2
+            entrypoint: fulfill_offer
+      - callback: on_objkt_fulfill_ask
+        pattern:
+          - type: transaction
+            destination: OBJKTBID_marketplace_v2
+            entrypoint: fulfill_ask

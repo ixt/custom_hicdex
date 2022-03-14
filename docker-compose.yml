@@ -1,0 +1,206 @@
+version: "3.8"
+
+services:
+  hicdex:
+    container_name: hicdex
+    build: .
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - hasura
+    volumes:
+      - ./src/hicdex:/home/dipdup/source/src/hicdex
+      - ./src/hicdex/dipdup.yml:/home/dipdup/dipdup.yml
+      - ./src/hicdex/dipdup-docker.yml:/home/dipdup/dipdup-docker.yml
+      - ../infos:/home/dipdup/infos
+      - ../hicdex-metadata:/home/dipdup/metadata:z
+    command: ["-c", "dipdup.yml", "-c", "dipdup-docker.yml", "run"]
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "3"
+        max-size: "25m"
+    environment:
+      - TZ=Europe/Paris
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - ADMIN_SECRET=${ADMIN_SECRET:-changeme}
+      - MAILGUN_API_KEY=${MAILGUN_API_KEY:-}
+      - NOTIFIED_EMAILS=${NOTIFIED_EMAILS:-}
+      - MAIL_FROM=${MAIL_FROM:-}
+      - MAIL_SUBJECT=${MAIL_SUBJECT:-Rollback}
+
+  col:
+    container_name: col
+    build: ./collections
+    profiles:
+      - script
+    env_file:
+      - .env
+    depends_on:
+      - db
+    volumes:
+      - .env:/app/.env
+    restart: 'no'
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "3"
+        max-size: "25m"
+
+  db:
+    container_name: postgres
+    image: postgres:13
+    shm_size: 1g
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "3"
+        max-size: "25m"
+    ports:
+      - 6423:5432
+    restart: always
+    volumes:
+      - /mnt/data/postgres:/var/lib/postgresql/data
+    env_file:
+      - .env
+    environment:
+      - TZ=Europe/Paris
+      - POSTGRES_DB=dipdup
+      - POSTGRES_USER=${POSTGRES_USER:-dipdup}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dipdup"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  hasura:
+    container_name: hasura
+    image: hasura/graphql-engine:latest
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "3"
+        max-size: "100m"
+    env_file:
+      - .env
+    ports:
+      - 8081:8080
+    # expose:
+    #   - 8080
+    depends_on:
+      - db
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "1"
+        max-size: "20m"
+    environment:
+      # postgres database to store Hasura metadata
+      # - HASURA_GRAPHQL_METADATA_DATABASE_URL=postgres://dipdup:${POSTGRES_PASSWORD}@db:5432/hasura
+      - TZ=Europe/Paris
+      - HASURA_GRAPHQL_DATABASE_URL=postgres://${POSTGRES_USER:-dipdup}:${POSTGRES_PASSWORD:-changeme}@db:5432/dipdup
+      - HASURA_GRAPHQL_ENABLE_CONSOLE=true
+      - HASURA_GRAPHQL_ENABLED_LOG_TYPES=startup, http-log, webhook-log, websocket-log #, query-log
+      - HASURA_GRAPHQL_ADMIN_SECRET=${ADMIN_SECRET:-changeme}
+      - HASURA_GRAPHQL_UNAUTHORIZED_ROLE=user
+      - HASURA_GRAPHQL_CORS_DOMAIN=https://nftbiker.xyz,http://nftbiker.test,https://nftbiker.test,https://superhen.netlify.app,https://hen.nftbiker.xyz
+
+  backup:
+    container_name: backup
+    image: prodrigestivill/postgres-backup-local
+    restart: always
+    user: postgres:postgres # Optional: see below
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "3"
+        max-size: "10m"
+    env_file:
+      - .env
+    volumes:
+      - /mnt/data/backups:/backups
+    links:
+      - db
+    depends_on:
+      - db
+    ports:
+      - 8082:8082
+    environment:
+      - TZ=Europe/Paris
+      - POSTGRES_HOST=db
+      - POSTGRES_DB=dipdup
+      - POSTGRES_USER=${POSTGRES_USER:-dipdup}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - POSTGRES_EXTRA_OPTS=-Z6 --clean --schema=public --blobs
+      - SCHEDULE=0 50 0,3,6,9,12,15,18,21 * * *
+      - BACKUP_KEEP_DAYS=1
+      - BACKUP_KEEP_WEEKS=2
+      - BACKUP_KEEP_MONTHS=2
+      - HEALTHCHECK_PORT=8082
+
+  # on demand backup of metas for mini-indexer if we need to restart from fresh
+  #  docker-compose run metas /backup.sh
+  metas:
+    image: prodrigestivill/postgres-backup-local
+    restart: 'no'
+    user: postgres:postgres # Optional: see below
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "1"
+        max-size: "2m"
+    env_file:
+      - .env
+    volumes:
+      - /mnt/data/metas:/backups
+    links:
+      - db
+    depends_on:
+      - db
+    ports:
+      - 8083:8083
+    profiles:
+      - metas
+    environment:
+      - TZ=Europe/Paris
+      - POSTGRES_HOST=db
+      - POSTGRES_DB=dipdup
+      - POSTGRES_USER=${POSTGRES_USER:-dipdup}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - POSTGRES_EXTRA_OPTS=-Z1 --clean --schema=public --blobs -t public.block -t public.dipdup_contract -t public.dipdup_head  -t public.dipdup_index  -t public.dipdup_schema -t public.fa2 -t public.holder -t public.token -t public.token_holder
+      - SCHEDULE=0 0 0 * * *
+      - BACKUP_KEEP_DAYS=0
+      - BACKUP_KEEP_WEEKS=0
+      - BACKUP_KEEP_MONTHS=0
+      - HEALTHCHECK_PORT=8083
+
+  # docker ruby script to fix fxhash data
+  fxhash:
+    container_name: fxhash
+    restart: 'no'
+    build: ./fxhash
+    env_file:
+      - .env
+    depends_on:
+      - db
+    volumes:
+      - ./fxhash/fxhash.rb:/myapp/fxhash.rb
+      - .env:/myapp/.env
+    profiles:
+      - scripts
+
+  idx:
+    container_name: idx
+    restart: 'always'
+    build: ./myindexer
+    env_file:
+      - .env
+    depends_on:
+      - db
+    volumes:
+      - ./myindexer:/myapp
+      - .env:/myapp/.env
